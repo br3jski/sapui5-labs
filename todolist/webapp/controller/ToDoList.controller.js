@@ -4,26 +4,46 @@ sap.ui.define([
     "sap/m/MessageToast",
     "sap/ui/model/Filter",
     "sap/ui/model/FilterOperator",
-    "sap/m/CustomListItem",
-    "sap/m/HBox",
-    "sap/m/VBox",
-    "sap/m/Text",
+    "sap/m/Dialog",
     "sap/m/Button",
-    "sap/m/ObjectStatus"
+    "sap/m/Text",
+    "sap/m/Title",
+    "sap/m/VBox",
+    "sap/m/ObjectHeader",
+    "sap/m/ObjectStatus",
+    "sap/m/ObjectAttribute",
+    "sap/m/CustomListItem",
+    "sap/m/HBox"
 ], function (Controller, JSONModel, MessageToast, Filter, FilterOperator, 
-            CustomListItem, HBox, VBox, Text, Button, ObjectStatus) {
+            Dialog, Button, Text, Title, VBox, ObjectHeader, ObjectStatus, ObjectAttribute,
+            CustomListItem, HBox) {
     "use strict";
 
     return Controller.extend("todolist.controller.ToDoList", {
+        
+        /* =========================================================== */
+        /* lifecycle methods                                           */
+        /* =========================================================== */
+        
         onInit: function () {
+            // Get the todo model from the component
             this.getView().setModel(this.getOwnerComponent().getModel("todoModel"), "todoModel");
             
+            // Set initial filter to "All"
             this._currentCategoryFilter = "All";
         },
         
+        /* =========================================================== */
+        /* event handlers                                              */
+        /* =========================================================== */
+        
+        /**
+         * Handles adding a new todo
+         */
         onAddTodo: function () {
             var oModel = this.getView().getModel("todoModel");
             var sNewTodo = oModel.getProperty("/newTodo").trim();
+            var sNewDescription = oModel.getProperty("/newDescription") || "";
             var sNewCategory = oModel.getProperty("/newCategory");
             
             if (!sNewTodo) {
@@ -37,6 +57,7 @@ sap.ui.define([
             aTodos.push({
                 id: iNextId,
                 title: sNewTodo,
+                description: sNewDescription,
                 status: "todo",
                 category: sNewCategory,
                 completed: false
@@ -44,12 +65,85 @@ sap.ui.define([
             
             oModel.setProperty("/todos", aTodos);
             oModel.setProperty("/newTodo", "");
+            oModel.setProperty("/newDescription", "");
+            // Don't reset category selection to allow adding multiple tasks of the same category
             
             oModel.refresh(true);
             MessageToast.show("Todo added");
         },
         
-        onCategoryFilterSelect: function(oEvent) {
+        /**
+         * Handles clicking on a task to view details
+         */
+        onTaskPress: function (oEvent) {
+            var oListItem = oEvent.getSource();
+            var oContext = oListItem.getBindingContext("todoModel");
+            var oTodo = oContext.getObject();
+            
+            // Create dialog if it doesn't exist yet
+            if (!this._oTaskDialog) {
+                this._oTaskDialog = new Dialog({
+                    title: "Task Details",
+                    contentWidth: "400px",
+                    content: [
+                        new ObjectHeader({
+                            title: "{todoModel>title}",
+                            statuses: [
+                                new ObjectStatus({
+                                    text: {
+                                        path: 'todoModel>status',
+                                        formatter: function(sStatus) {
+                                            if (sStatus === "todo") return "To Do";
+                                            if (sStatus === "inProgress") return "In Progress";
+                                            return "Done";
+                                        }
+                                    },
+                                    state: "Information"
+                                }),
+                                new ObjectStatus({
+                                    text: "{todoModel>category}",
+                                    state: {
+                                        path: 'todoModel>category',
+                                        formatter: function(sCategory) {
+                                            if (sCategory === "Task") return "Success";
+                                            if (sCategory === "Bug") return "Error";
+                                            return "Warning";
+                                        }
+                                    }
+                                })
+                            ],
+                            attributes: [
+                                new ObjectAttribute({
+                                    title: "Description",
+                                    text: "{todoModel>description}"
+                                })
+                            ]
+                        })
+                    ],
+                    beginButton: new Button({
+                        text: "Close",
+                        press: function () {
+                            this._oTaskDialog.close();
+                        }.bind(this)
+                    })
+                });
+                
+                this.getView().addDependent(this._oTaskDialog);
+            }
+            
+            // Bind dialog to the selected todo
+            this._oTaskDialog.bindElement({
+                path: oContext.getPath(),
+                model: "todoModel"
+            });
+            
+            this._oTaskDialog.open();
+        },
+        
+        /**
+         * Handles category filter selection
+         */
+        onCategoryFilterSelect: function (oEvent) {
             var sKey = oEvent.getParameter("key");
             this._currentCategoryFilter = sKey;
             
@@ -58,6 +152,244 @@ sap.ui.define([
             MessageToast.show("Showing " + (sKey === "All" ? "all tasks" : sKey + " tasks"));
         },
         
+        /**
+         * Move a todo to To Do status
+         */
+        onMoveToTodo: function (oEvent) {
+            var iTodoId = parseInt(oEvent.getSource().getCustomData()[0].getValue());
+            this._updateTodo(iTodoId, "todo");
+            this._stopPropagation(oEvent);
+            MessageToast.show("Moved to To Do");
+        },
+        
+        /**
+         * Move a todo to In Progress status
+         */
+        onMoveToInProgress: function (oEvent) {
+            var iTodoId = parseInt(oEvent.getSource().getCustomData()[0].getValue());
+            this._updateTodo(iTodoId, "inProgress");
+            this._stopPropagation(oEvent);
+            MessageToast.show("Moved to In Progress");
+        },
+        
+        /**
+         * Move a todo to Done status
+         */
+        onMoveToDone: function (oEvent) {
+            var iTodoId = parseInt(oEvent.getSource().getCustomData()[0].getValue());
+            this._updateTodo(iTodoId, "done");
+            this._stopPropagation(oEvent);
+            MessageToast.show("Moved to Done");
+        },
+        
+        /**
+         * Toggle the completed status of a todo
+         */
+        onToggleCompleted: function (oEvent) {
+            var oSource = oEvent.getSource();
+            var oModel = this.getView().getModel("todoModel");
+            var aTodos = oModel.getProperty("/todos");
+            var iTodoId = parseInt(oSource.getCustomData()[0].getValue());
+            
+            var oTodo = this._getTodoById(iTodoId);
+            
+            if (oTodo) {
+                oTodo.completed = !oTodo.completed;
+                if (oTodo.completed) {
+                    oTodo.status = "done";
+                }
+                oModel.setProperty("/todos", aTodos);
+                oModel.refresh(true);
+                this._stopPropagation(oEvent);
+                MessageToast.show(oTodo.completed ? "Todo marked as completed" : "Todo marked as active");
+            }
+        },
+        
+        /**
+         * Delete a todo
+         */
+        onDeleteTodo: function (oEvent) {
+            var oSource = oEvent.getSource();
+            var oModel = this.getView().getModel("todoModel");
+            var aTodos = oModel.getProperty("/todos");
+            var iTodoId = parseInt(oSource.getCustomData()[0].getValue());
+            
+            var iIndex = aTodos.findIndex(function(todo) {
+                return todo.id === iTodoId;
+            });
+            
+            if (iIndex !== -1) {
+                aTodos.splice(iIndex, 1);
+                oModel.setProperty("/todos", aTodos);
+                oModel.refresh(true);
+                this._stopPropagation(oEvent);
+                MessageToast.show("Todo deleted");
+            }
+        },
+        
+        /**
+         * Factory function for creating todo list items
+         */
+        todoItemFactory: function (sId, oContext) {
+            var oTodo = oContext.getObject();
+            var that = this;
+            
+            var aButtons = [];
+            
+            // Add buttons based on task status
+            if (oTodo.status === "todo") {
+                aButtons.push(new Button({
+                    icon: "sap-icon://forward",
+                    tooltip: "Move to In Progress",
+                    press: function(oEvent) {
+                        that.onMoveToInProgress({
+                            getSource: function() {
+                                return {
+                                    getCustomData: function() {
+                                        return [{
+                                            getValue: function() {
+                                                return oTodo.id;
+                                            }
+                                        }];
+                                    }
+                                };
+                            },
+                            stopPropagation: function() {}
+                        });
+                    }
+                }));
+            } else if (oTodo.status === "inProgress") {
+                aButtons.push(new Button({
+                    icon: "sap-icon://media-rewind",
+                    tooltip: "Move to To Do",
+                    press: function(oEvent) {
+                        that.onMoveToTodo({
+                            getSource: function() {
+                                return {
+                                    getCustomData: function() {
+                                        return [{
+                                            getValue: function() {
+                                                return oTodo.id;
+                                            }
+                                        }];
+                                    }
+                                };
+                            },
+                            stopPropagation: function() {}
+                        });
+                    }
+                }));
+                
+                aButtons.push(new Button({
+                    icon: "sap-icon://media-forward",
+                    tooltip: "Move to Done",
+                    press: function(oEvent) {
+                        that.onMoveToDone({
+                            getSource: function() {
+                                return {
+                                    getCustomData: function() {
+                                        return [{
+                                            getValue: function() {
+                                                return oTodo.id;
+                                            }
+                                        }];
+                                    }
+                                };
+                            },
+                            stopPropagation: function() {}
+                        });
+                    }
+                }));
+            } else if (oTodo.status === "done") {
+                aButtons.push(new Button({
+                    icon: "sap-icon://media-rewind",
+                    tooltip: "Move to In Progress",
+                    press: function(oEvent) {
+                        that.onMoveToInProgress({
+                            getSource: function() {
+                                return {
+                                    getCustomData: function() {
+                                        return [{
+                                            getValue: function() {
+                                                return oTodo.id;
+                                            }
+                                        }];
+                                    }
+                                };
+                            },
+                            stopPropagation: function() {}
+                        });
+                    }
+                }));
+            }
+            
+            // Add delete button for all statuses
+            aButtons.push(new Button({
+                icon: "sap-icon://delete",
+                tooltip: "Delete Task",
+                press: function(oEvent) {
+                    that.onDeleteTodo({
+                        getSource: function() {
+                            return {
+                                getCustomData: function() {
+                                    return [{
+                                        getValue: function() {
+                                            return oTodo.id;
+                                        }
+                                    }];
+                                }
+                            };
+                        },
+                        stopPropagation: function() {}
+                    });
+                }
+            }));
+            
+            // Determine category styling
+            var sCategoryState = "Information";
+            if (oTodo.category === "Bug") {
+                sCategoryState = "Error";
+            } else if (oTodo.category === "Task") {
+                sCategoryState = "Success";
+            } else if (oTodo.category === "Consultation") {
+                sCategoryState = "Warning";
+            }
+            
+            // Create the list item with content
+            return new CustomListItem({
+                type: "Active",
+                press: [that.onTaskPress, that],
+                content: [
+                    new HBox({
+                        width: "100%",
+                        justifyContent: "SpaceBetween",
+                        alignItems: "Center",
+                        items: [
+                            new VBox({
+                                items: [
+                                    new Text({text: oTodo.title}),
+                                    new ObjectStatus({
+                                        text: oTodo.category,
+                                        state: sCategoryState
+                                    })
+                                ]
+                            }),
+                            new HBox({
+                                items: aButtons
+                            })
+                        ]
+                    })
+                ]
+            });
+        },
+        
+        /* =========================================================== */
+        /* internal methods                                            */
+        /* =========================================================== */
+        
+        /**
+         * Apply category filters to all lists
+         */
         _applyFiltersToLists: function() {
             var aLists = ["todoList", "inProgressList", "doneList"];
             var that = this;
@@ -100,146 +432,9 @@ sap.ui.define([
             });
         },
         
-        todoItemFactory: function(sId, oContext) {
-            var oTodo = oContext.getObject();
-            var that = this;
-            
-            var aButtons = [];
-            
-            if (oTodo.status === "todo") {
-                aButtons.push(new Button({
-                    icon: "sap-icon://forward",
-                    tooltip: "Move to In Progress",
-                    press: function() {
-                        that.onMoveToInProgress({
-                            getSource: function() {
-                                return {
-                                    getCustomData: function() {
-                                        return [{
-                                            getValue: function() {
-                                                return oTodo.id;
-                                            }
-                                        }];
-                                    }
-                                };
-                            }
-                        });
-                    }
-                }));
-            } else if (oTodo.status === "inProgress") {
-                aButtons.push(new Button({
-                    icon: "sap-icon://media-rewind",
-                    tooltip: "Move to To Do",
-                    press: function() {
-                        that.onMoveToTodo({
-                            getSource: function() {
-                                return {
-                                    getCustomData: function() {
-                                        return [{
-                                            getValue: function() {
-                                                return oTodo.id;
-                                            }
-                                        }];
-                                    }
-                                };
-                            }
-                        });
-                    }
-                }));
-                
-                aButtons.push(new Button({
-                    icon: "sap-icon://media-forward",
-                    tooltip: "Move to Done",
-                    press: function() {
-                        that.onMoveToDone({
-                            getSource: function() {
-                                return {
-                                    getCustomData: function() {
-                                        return [{
-                                            getValue: function() {
-                                                return oTodo.id;
-                                            }
-                                        }];
-                                    }
-                                };
-                            }
-                        });
-                    }
-                }));
-            } else if (oTodo.status === "done") {
-                aButtons.push(new Button({
-                    icon: "sap-icon://media-rewind",
-                    tooltip: "Move to In Progress",
-                    press: function() {
-                        that.onMoveToInProgress({
-                            getSource: function() {
-                                return {
-                                    getCustomData: function() {
-                                        return [{
-                                            getValue: function() {
-                                                return oTodo.id;
-                                            }
-                                        }];
-                                    }
-                                };
-                            }
-                        });
-                    }
-                }));
-            }
-            
-            aButtons.push(new Button({
-                icon: "sap-icon://delete",
-                tooltip: "Delete Task",
-                press: function() {
-                    that.onDeleteTodo({
-                        getSource: function() {
-                            return {
-                                getCustomData: function() {
-                                    return [{
-                                        getValue: function() {
-                                            return oTodo.id;
-                                        }
-                                    }];
-                                }
-                            };
-                        }
-                    });
-                }
-            }));
-            
-            var sCategoryState = "Information";
-            if (oTodo.category === "Bug") {
-                sCategoryState = "Error";
-            } else if (oTodo.category === "Task") {
-                sCategoryState = "Success";
-            }
-            
-            return new CustomListItem({
-                content: [
-                    new HBox({
-                        width: "100%",
-                        justifyContent: "SpaceBetween",
-                        alignItems: "Center",
-                        items: [
-                            new VBox({
-                                items: [
-                                    new Text({text: oTodo.title}),
-                                    new ObjectStatus({
-                                        text: oTodo.category,
-                                        state: sCategoryState
-                                    })
-                                ]
-                            }),
-                            new HBox({
-                                items: aButtons
-                            })
-                        ]
-                    })
-                ]
-            });
-        },
-        
+        /**
+         * Get a todo by ID
+         */
         _getTodoById: function(id) {
             var aTodos = this.getView().getModel("todoModel").getProperty("/todos");
             return aTodos.find(function(todo) {
@@ -247,6 +442,9 @@ sap.ui.define([
             });
         },
         
+        /**
+         * Update a todo status
+         */
         _updateTodo: function(id, newStatus) {
             var oModel = this.getView().getModel("todoModel");
             var aTodos = oModel.getProperty("/todos");
@@ -265,58 +463,12 @@ sap.ui.define([
             }
         },
         
-        onMoveToTodo: function(oEvent) {
-            var iTodoId = parseInt(oEvent.getSource().getCustomData()[0].getValue());
-            this._updateTodo(iTodoId, "todo");
-            MessageToast.show("Moved to To Do");
-        },
-        
-        onMoveToInProgress: function(oEvent) {
-            var iTodoId = parseInt(oEvent.getSource().getCustomData()[0].getValue());
-            this._updateTodo(iTodoId, "inProgress");
-            MessageToast.show("Moved to In Progress");
-        },
-        
-        onMoveToDone: function(oEvent) {
-            var iTodoId = parseInt(oEvent.getSource().getCustomData()[0].getValue());
-            this._updateTodo(iTodoId, "done");
-            MessageToast.show("Moved to Done");
-        },
-        
-        onToggleCompleted: function (oEvent) {
-            var oSource = oEvent.getSource();
-            var oModel = this.getView().getModel("todoModel");
-            var aTodos = oModel.getProperty("/todos");
-            var iTodoId = parseInt(oSource.getCustomData()[0].getValue());
-            
-            var oTodo = this._getTodoById(iTodoId);
-            
-            if (oTodo) {
-                oTodo.completed = !oTodo.completed;
-                if (oTodo.completed) {
-                    oTodo.status = "done";
-                }
-                oModel.setProperty("/todos", aTodos);
-                oModel.refresh(true);
-                MessageToast.show(oTodo.completed ? "Todo marked as completed" : "Todo marked as active");
-            }
-        },
-        
-        onDeleteTodo: function (oEvent) {
-            var oSource = oEvent.getSource();
-            var oModel = this.getView().getModel("todoModel");
-            var aTodos = oModel.getProperty("/todos");
-            var iTodoId = parseInt(oSource.getCustomData()[0].getValue());
-            
-            var iIndex = aTodos.findIndex(function(todo) {
-                return todo.id === iTodoId;
-            });
-            
-            if (iIndex !== -1) {
-                aTodos.splice(iIndex, 1);
-                oModel.setProperty("/todos", aTodos);
-                oModel.refresh(true);
-                MessageToast.show("Todo deleted");
+        /**
+         * Prevent event propagation
+         */
+        _stopPropagation: function(oEvent) {
+            if (oEvent && oEvent.stopPropagation) {
+                oEvent.stopPropagation();
             }
         }
     });

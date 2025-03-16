@@ -17,6 +17,14 @@
                         class="sapUiSmallMarginBottom"
                         submit="onAddTodo"/>
                     
+                    <!-- New Description Field -->
+                    <TextArea
+                        value="{todoModel>/newDescription}"
+                        placeholder="Description (optional)"
+                        width="100%"
+                        rows="3"
+                        class="sapUiSmallMarginBottom"/>
+                    
                     <ComboBox
                         selectedKey="{todoModel>/newCategory}"
                         width="100%"
@@ -61,7 +69,7 @@
                                 ]
                             }">
                             <items>
-                                <CustomListItem>
+                                <CustomListItem type="Active" press="onTaskPress">
                                     <HBox width="100%" justifyContent="SpaceBetween" alignItems="Center">
                                         <VBox>
                                             <Text text="{todoModel>title}" />
