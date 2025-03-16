@@ -14,8 +14,8 @@ sap.ui.define([
         createTodoListModel: function () {
             var oModel = new JSONModel({
                 todos: [
-                    { id: 1, title: "Learn SAPUI5", description: "Study the basics of SAPUI5 framework", status: "todo", category: "Task", completed: false },
-                    { id: 2, title: "Fix login screen", description: "Users can't log in with special characters", status: "inProgress", category: "Bug", completed: false }
+                    { id: 1, title: "Task 1", description: "Task 1 from SAPUI5 Framework", status: "todo", category: "Task", completed: false },
+                    { id: 2, title: "Task 2", description: "Whatever. I just wanna pass", status: "inProgress", category: "Bug", completed: false }
                 ],
                 statuses: [
                     { key: "todo", name: "To Do" },
