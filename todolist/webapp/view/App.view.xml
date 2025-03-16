@@ -1,0 +1,17 @@
+<mvc:View
+    controllerName="todolist.controller.App"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    displayBlock="true">
+    <Shell>
+        <App id="app">
+            <pages>
+                <Page title="My Todo List">
+                    <content>
+                        <mvc:XMLView viewName="todolist.view.ToDoList"/>
+                    </content>
+                </Page>
+            </pages>
+        </App>
+    </Shell>
+</mvc:View>

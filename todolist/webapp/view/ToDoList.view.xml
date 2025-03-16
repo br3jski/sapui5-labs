@@ -1,0 +1,127 @@
+<mvc:View
+    controllerName="todolist.controller.ToDoList"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:f="sap.f"
+    xmlns:layout="sap.ui.layout"
+    xmlns:grid="sap.ui.layout.cssgrid">
+    <Page showHeader="false">
+        <content>
+            <Panel class="sapUiSmallMargin" backgroundDesign="Transparent">
+                <VBox width="100%" class="sapUiSmallMarginBottom">
+                    <Input
+                        value="{todoModel>/newTodo}"
+                        placeholder="Add new todo"
+                        width="100%"
+                        class="sapUiSmallMarginBottom"
+                        submit="onAddTodo"/>
+                    
+                    <ComboBox
+                        selectedKey="{todoModel>/newCategory}"
+                        width="100%"
+                        class="sapUiSmallMarginBottom"
+                        items="{todoModel>/categories}">
+                        <core:Item key="{todoModel>key}" text="{todoModel>name}"/>
+                    </ComboBox>
+                    
+                    <Button
+                        text="Add"
+                        type="Emphasized" 
+                        width="100%"
+                        press="onAddTodo"/>
+                </VBox>
+            </Panel>
+
+            <IconTabBar
+                id="idCategoryTabBar"
+                select="onCategoryFilterSelect"
+                expandable="false"
+                applyContentPadding="false"
+                class="sapUiSmallMargin">
+                <items>
+                    <IconTabFilter text="All" key="All" />
+                    <IconTabFilter text="Tasks" key="Task" />
+                    <IconTabFilter text="Bugs" key="Bug" />
+                    <IconTabFilter text="Consultations" key="Consultation" />
+                </items>
+                <content>
+                    <grid:CSSGrid
+                        gridTemplateColumns="1fr 1fr 1fr"
+                        gridGap="0.5rem"
+                        class="sapUiSmallMargin">
+                        
+                    <Panel headerText="To Do" class="sapUiNoContentPadding">
+                        <List
+                            id="todoList"
+                            items="{
+                                path: 'todoModel>/todos',
+                                filters: [
+                                    {path: 'status', operator: 'EQ', value1: 'todo'}
+                                ]
+                            }">
+                            <items>
+                                <CustomListItem>
+                                    <HBox width="100%" justifyContent="SpaceBetween" alignItems="Center">
+                                        <VBox>
+                                            <Text text="{todoModel>title}" />
+                                            <ObjectStatus 
+                                                text="{todoModel>category}" 
+                                                state="{= ${todoModel>category} === 'Task' ? 'Success' : 
+                                                    ${todoModel>category} === 'Bug' ? 'Error' : 'Warning' }" />
+                                        </VBox>
+                                        <HBox>
+                                            <Button 
+                                                icon="sap-icon://forward" 
+                                                tooltip="Move to In Progress"
+                                                press="onMoveToInProgress">
+                                                <customData>
+                                                    <core:CustomData key="id" value="{todoModel>id}" />
+                                                </customData>
+                                            </Button>
+                                            <Button 
+                                                icon="sap-icon://delete" 
+                                                tooltip="Delete Task"
+                                                press="onDeleteTodo">
+                                                <customData>
+                                                    <core:CustomData key="id" value="{todoModel>id}" />
+                                                </customData>
+                                            </Button>
+                                        </HBox>
+                                    </HBox>
+                                </CustomListItem>
+                            </items>
+                        </List>
+                    </Panel>
+                        
+                        <Panel headerText="In Progress" class="sapUiNoContentPadding">
+                            <List
+                                id="inProgressList"
+                                items="{
+                                    path: 'todoModel>/todos',
+                                    filters: [
+                                        {path: 'status', operator: 'EQ', value1: 'inProgress'}
+                                    ],
+                                    factory: '.todoItemFactory'
+                                }">
+                            </List>
+                        </Panel>
+                        
+                        <Panel headerText="Done" class="sapUiNoContentPadding">
+                            <List
+                                id="doneList"
+                                items="{
+                                    path: 'todoModel>/todos',
+                                    filters: [
+                                        {path: 'status', operator: 'EQ', value1: 'done'}
+                                    ],
+                                    factory: '.todoItemFactory'
+                                }">
+                            </List>
+                        </Panel>
+                    </grid:CSSGrid>
+                </content>
+            </IconTabBar>
+        </content>
+    </Page>
+</mvc:View>

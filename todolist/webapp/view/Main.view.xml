@@ -1,0 +1,35 @@
+<mvc:View
+    controllerName="com.example.todolist.controller.Main" // Zmień na namespace Twojej aplikacji
+    xmlns:mvc="sap.ui.core.mvc"
+    displayBlock="true"
+    xmlns="sap.m">
+    <Page
+        id="page"
+        title="{i18n>appTitle}">
+        <content>
+            <Input
+                id="newTaskInput"
+                placeholder="{i18n>newTask}"
+                width="100%"
+                liveChange=".onInputChange"/>
+            <Button
+                text="{i18n>addButton}"
+                press=".onAddTask"/>
+            <List
+                id="taskList"
+                items="{
+                    path: '/tasks',
+                    template: {
+                        path: '',
+                        templateShareable: false
+                    }
+                }">
+                <StandardListItem
+                    title="{title}"
+                    description="{completed}"
+                    type="Active"
+                    press=".onToggleTask"/>
+            </List>
+        </content>
+    </Page>
+</mvc:View>
